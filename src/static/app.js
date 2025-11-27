@@ -867,7 +867,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Dark mode toggle functionality
   function initializeTheme() {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") {
+    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    
+    if (savedTheme === "dark" || (savedTheme === null && prefersDark)) {
       document.body.classList.add("dark-mode");
       themeToggle.querySelector(".theme-icon").textContent = "☀️";
     }
