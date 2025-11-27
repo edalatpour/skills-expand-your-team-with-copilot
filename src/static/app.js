@@ -877,8 +877,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Generate share URL for an activity
   function getShareUrl(activityName) {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/static/index.html#activity=${encodeURIComponent(activityName)}`;
+    // Use the current page URL as base, which works in any deployment environment
+    const url = new URL(window.location.href);
+    url.hash = `activity=${encodeURIComponent(activityName)}`;
+    return url.toString();
   }
 
   // Generate share text for an activity
