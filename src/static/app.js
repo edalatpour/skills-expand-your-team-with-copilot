@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const categoryFilters = document.querySelectorAll(".category-filter");
   const dayFilters = document.querySelectorAll(".day-filter");
   const timeFilters = document.querySelectorAll(".time-filter");
+  const difficultyFilters = document.querySelectorAll(".difficulty-filter");
 
   // Authentication elements
   const loginButton = document.getElementById("login-button");
@@ -43,6 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let searchQuery = "";
   let currentDay = "";
   let currentTimeRange = "";
+  let currentDifficulty = "";
 
   // Authentication state
   let currentUser = null;
@@ -66,6 +68,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const activeTimeFilter = document.querySelector(".time-filter.active");
     if (activeTimeFilter) {
       currentTimeRange = activeTimeFilter.dataset.time;
+    }
+
+    // Initialize difficulty filter
+    const activeDifficultyFilter = document.querySelector(".difficulty-filter.active");
+    if (activeDifficultyFilter) {
+      currentDifficulty = activeDifficultyFilter.dataset.difficulty;
     }
   }
 
@@ -92,6 +100,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update active class
     timeFilters.forEach((btn) => {
       if (btn.dataset.time === timeRange) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+
+    fetchActivities();
+  }
+
+  // Function to set difficulty filter
+  function setDifficultyFilter(difficulty) {
+    currentDifficulty = difficulty;
+
+    // Update active class
+    difficultyFilters.forEach((btn) => {
+      if (btn.dataset.difficulty === difficulty) {
         btn.classList.add("active");
       } else {
         btn.classList.remove("active");
@@ -395,6 +419,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
+      // Handle difficulty filter
+      if (currentDifficulty) {
+        queryParams.push(`difficulty=${encodeURIComponent(currentDifficulty)}`);
+      }
+
       const queryString =
         queryParams.length > 0 ? `?${queryParams.join("&")}` : "";
       const response = await fetch(`/activities${queryString}`);
@@ -509,6 +538,11 @@ document.addEventListener("DOMContentLoaded", () => {
       </span>
     `;
 
+    // Create difficulty tag (only if difficulty is specified)
+    const difficultyHtml = details.difficulty
+      ? `<span class="difficulty-tag difficulty-${details.difficulty.toLowerCase()}">${details.difficulty}</span>`
+      : "";
+
     // Create capacity indicator
     const capacityIndicator = `
       <div class="capacity-container ${capacityStatusClass}">
@@ -522,8 +556,37 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
+    // Create share button HTML
+    const shareButtonHtml = `
+      <div class="share-container">
+        <button class="share-button" data-activity="${name}" aria-label="Share ${name}">
+          <span class="share-icon">📤</span>
+          <span>Share</span>
+        </button>
+        <div class="share-dropdown">
+          <button class="share-option twitter" data-activity="${name}" data-platform="twitter">
+            <span class="share-option-icon">𝕏</span>
+            <span>Twitter/X</span>
+          </button>
+          <button class="share-option facebook" data-activity="${name}" data-platform="facebook">
+            <span class="share-option-icon">📘</span>
+            <span>Facebook</span>
+          </button>
+          <button class="share-option email" data-activity="${name}" data-platform="email">
+            <span class="share-option-icon">✉️</span>
+            <span>Email</span>
+          </button>
+          <button class="share-option copy" data-activity="${name}" data-platform="copy">
+            <span class="share-option-icon">📋</span>
+            <span>Copy Link</span>
+          </button>
+        </div>
+      </div>
+    `;
+
     activityCard.innerHTML = `
       ${tagHtml}
+      ${difficultyHtml}
       <h4>${name}</h4>
       <p>${details.description}</p>
       <p class="tooltip">
@@ -571,6 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         `
         }
+        ${shareButtonHtml}
       </div>
     `;
 
@@ -589,6 +653,33 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
     }
+
+    // Add click handlers for share buttons
+    const shareButton = activityCard.querySelector(".share-button");
+    const shareDropdown = activityCard.querySelector(".share-dropdown");
+    
+    shareButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      // Close any other open dropdowns
+      document.querySelectorAll(".share-dropdown.show").forEach(dropdown => {
+        if (dropdown !== shareDropdown) {
+          dropdown.classList.remove("show");
+        }
+      });
+      shareDropdown.classList.toggle("show");
+    });
+
+    // Add click handlers for share options
+    const shareOptions = activityCard.querySelectorAll(".share-option");
+    shareOptions.forEach((option) => {
+      option.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const platform = option.dataset.platform;
+        const activityName = option.dataset.activity;
+        handleShare(platform, activityName, details);
+        shareDropdown.classList.remove("show");
+      });
+    });
 
     activitiesList.appendChild(activityCard);
   }
@@ -640,6 +731,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Update current time filter and fetch activities
       currentTimeRange = button.dataset.time;
+      fetchActivities();
+    });
+  });
+
+  // Add event listeners for difficulty filter buttons
+  difficultyFilters.forEach((button) => {
+    button.addEventListener("click", () => {
+      // Update active class
+      difficultyFilters.forEach((btn) => btn.classList.remove("active"));
+      button.classList.add("active");
+
+      // Update current difficulty filter and fetch activities
+      currentDifficulty = button.dataset.difficulty;
       fetchActivities();
     });
   });
@@ -802,6 +906,88 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  // Show toast notification
+  function showToast(message) {
+    let toast = document.getElementById("share-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "share-toast";
+      toast.className = "toast";
+      document.body.appendChild(toast);
+    }
+    
+    toast.textContent = message;
+    toast.classList.add("show");
+    
+    setTimeout(() => {
+      toast.classList.remove("show");
+    }, 3000);
+  }
+
+  // Generate share URL for an activity
+  function getShareUrl(activityName) {
+    // Use the current page URL as base, which works in any deployment environment
+    const url = new URL(window.location.href);
+    url.hash = `activity=${encodeURIComponent(activityName)}`;
+    return url.toString();
+  }
+
+  // Generate share text for an activity
+  function getShareText(activityName, details) {
+    const schedule = formatSchedule(details);
+    return `Check out ${activityName} at Mergington High School! ${details.description} Schedule: ${schedule}`;
+  }
+
+  // Handle sharing to different platforms
+  function handleShare(platform, activityName, details) {
+    const shareUrl = getShareUrl(activityName);
+    const shareText = getShareText(activityName, details);
+    
+    switch (platform) {
+      case "twitter":
+        const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+        window.open(twitterUrl, "_blank", "width=550,height=420");
+        break;
+        
+      case "facebook":
+        const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`;
+        window.open(facebookUrl, "_blank", "width=550,height=420");
+        break;
+        
+      case "email":
+        const subject = `Check out ${activityName} at Mergington High School!`;
+        const body = `${shareText}\n\nLearn more: ${shareUrl}`;
+        const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailtoUrl;
+        break;
+        
+      case "copy":
+        const textToCopy = `${shareText}\n${shareUrl}`;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          showToast("Link copied to clipboard!");
+        }).catch(() => {
+          // Fallback for older browsers
+          const textArea = document.createElement("textarea");
+          textArea.value = textToCopy;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textArea);
+          showToast("Link copied to clipboard!");
+        });
+        break;
+    }
+  }
+
+  // Close share dropdowns when clicking outside
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".share-container")) {
+      document.querySelectorAll(".share-dropdown.show").forEach(dropdown => {
+        dropdown.classList.remove("show");
+      });
+    }
+  });
+
   // Show message function
   function showMessage(text, type) {
     messageDiv.textContent = text;
@@ -862,6 +1048,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.activityFilters = {
     setDayFilter,
     setTimeRangeFilter,
+    setDifficultyFilter,
   };
 
   // Dark mode toggle functionality
