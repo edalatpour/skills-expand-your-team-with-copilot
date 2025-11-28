@@ -631,6 +631,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         `
         }
+        ${shareButtonHtml}
       </div>
     `;
 
